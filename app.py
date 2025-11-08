@@ -13,7 +13,7 @@ def get_ai_response(user_question):
     """الحصول على إجابة من الذكاء الاصطناعي مع التعليمات القانونية"""
     try:
         # إعداد الذكاء الاصطناعي
-        GOOGLE_API_KEY = "AIzaSyAcpxzbnfE-uCmKZFl77sbWR9WnTAdTeno"
+        GOOGLE_API_KEY = "----"
         genai.configure(api_key=GOOGLE_API_KEY)
         model = genai.GenerativeModel('gemini-2.5-flash')
         
@@ -106,7 +106,7 @@ if selected_topic:
 if user_question:
     # إضافة وعرض سؤال المستخدم
     st.session_state.chat_history.append({"role": "user", "content": user_question})
-    
+
     with st.chat_message("user"):
         st.markdown(user_question)
     
