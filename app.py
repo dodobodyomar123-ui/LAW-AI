@@ -1,123 +1,162 @@
-import streamlit as st 
+import streamlit as st
 import google.generativeai as genai
 
-# ============= إعدادات الصفحة =============
-st.set_page_config(
-    page_title="مساعد القانون المصري", 
-    page_icon="⚖️"
-)
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# ============= الدوال الأساسية =============
-
-def get_ai_response(user_question):
-    """الحصول على إجابة من الذكاء الاصطناعي مع التعليمات القانونية"""
-    try:
-        # إعداد الذكاء الاصطناعي
-        GOOGLE_API_KEY = "----"
-        genai.configure(api_key=GOOGLE_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        # إنشاء التعليمات مع السؤال
-        instructions = """أنت مساعد قانوني متخصص في القانون المصري.
-        
-        قواعد مهمة:
-        - أجب دائماً باللغة العربية
-        - قدم معلومات دقيقة عن القانون المصري
-        - اذكر أرقام المواد القانونية عندما يكون ذلك ممكناً
-        - نبه المستخدم أن هذه معلومات عامة وليست استشارة قانونية رسمية
-        - إذا لم تكن متأكداً، أخبر المستخدم بذلك
-        
-        سؤال المستخدم: """
-        
-        full_prompt = instructions + user_question
-        
-        # الحصول على الإجابة
-        response = model.generate_content(full_prompt)
-        return response.text
-        
-    except Exception as error:
-        return f"عذراً، حدث خطأ: {str(error)}"
+# ================= Page config =================
+st.set_page_config(page_title="مساعد القانون المصري", page_icon="⚖️")
 
 
-def show_chat_history():
-    """عرض سجل المحادثة"""
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# ================= Session state =================
+if "vectorstore" not in st.session_state:
+    st.session_state.vectorstore = None
 
-
-# ============= واجهة البرنامج =============
-
-# تهيئة الجلسة
-if 'chat_history' not in st.session_state:
+if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# العنوان والوصف
-st.title("⚖️ مساعد القانون المصري")
-st.info("💡 هذا المساعد يقدم معلومات عامة عن القانون المصري وليس بديلاً عن الاستشارة القانونية المتخصصة")
 
-# الشريط الجانبي
+# ================= File upload =================
+uploaded_file = st.file_uploader("📄 ارفع ملف PDF للقانون", type=["pdf"])
+
+if uploaded_file:
+    with st.spinner("جاري معالجة الملف..."):
+        # ✅ SAVE PDF TEMPORARILY (FIX)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            tmp_path = tmp_file.name
+
+        # ✅ LOAD PDF CORRECTLY
+        loader = PyPDFLoader(tmp_path)
+        pages = loader.load()
+
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+        chunks = text_splitter.split_documents(pages)
+
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+
+        st.session_state.vectorstore = FAISS.from_documents(chunks, embeddings)
+
+    st.success("✔️ تم تحميل ومعالجة ملف PDF بنجاح!")
+
+
+# ================= AI RESPONSE =================
+def get_ai_response(user_question):
+    try:
+        GOOGLE_API_KEY = "AIzaSyAcpxzbnfE-uCmKZFl77sbWR9WnTAdTeno"
+        genai.configure(api_key=GOOGLE_API_KEY)
+
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        context = ""
+        found_info = False
+
+        if st.session_state.vectorstore:
+            results = st.session_state.vectorstore.similarity_search(user_question, k=3)
+            for doc in results:
+                if doc.page_content.strip():
+                    found_info = True
+                    context += doc.page_content + "\n"
+
+        if found_info:
+            instructions = f"""
+أنت مساعد قانوني متخصص في القانون المصري.
+
+استخدم فقط المعلومات التالية من ملف PDF:
+{context}
+
+قواعد:
+- أجب باللغة العربية
+- اذكر أرقام المواد إن أمكن
+- هذه ليست استشارة قانونية رسمية
+
+سؤال المستخدم:
+{user_question}
+"""
+        else:
+            instructions = f"""
+لم يتم العثور على إجابة داخل ملف PDF.
+
+- أجب من معرفتك العامة
+- نبه المستخدم أن الإجابة ليست من الملف
+
+سؤال المستخدم:
+{user_question}
+"""
+
+        response = model.generate_content(instructions)
+        return response.text
+
+    except Exception as e:
+        return f"حدث خطأ: {str(e)}"
+
+
+# ================= UI =================
+st.title("⚖️ مساعد القانون المصري")
+st.info("💡 هذا المساعد يقدم معلومات عامة وليس بديلاً عن محامٍ")
+
 with st.sidebar:
     st.markdown("### 📋 معلومات")
     st.markdown("""
-    هذا المساعد يمكنه مساعدتك في:
+    يساعدك في:
     - فهم القوانين المصرية
-    - معرفة حقوقك وواجباتك
     - الإجراءات القانونية
-    - الأسئلة القانونية العامة
+    - الأسئلة العامة
     """)
-    
-    st.markdown("---")
-    
     if st.button("🗑️ مسح المحادثة"):
         st.session_state.chat_history = []
         st.rerun()
 
 
-
-# عرض المواضيع المقترحة (فقط في البداية)
+# ================= Topics =================
 selected_topic = None
 if len(st.session_state.chat_history) == 0:
-    st.write("**اختر موضوعاً أو اكتب سؤالك:**")
     selected_topic = st.pills(
         "مواضيع شائعة:",
         [
-            "قانون العمل", 
-            "قانون الأحوال الشخصية", 
-            "القانون المدني", 
-            "القانون الجنائي", 
-            "قانون الإيجارات", 
+            "قانون العمل",
+            "قانون الأحوال الشخصية",
+            "القانون المدني",
+            "القانون الجنائي",
+            "قانون الإيجارات",
             "قانون التجارة"
         ],
         selection_mode="single"
     )
 
-# عرض المحادثات السابقة
-show_chat_history()
 
-# صندوق إدخال السؤال
+# ================= Chat =================
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
 user_question = st.chat_input("اكتب سؤالك القانوني هنا...")
 
-# معالجة اختيار موضوع من المقترحات
 if selected_topic:
     user_question = f"أخبرني عن {selected_topic} في القانون المصري"
 
-# معالجة السؤال
 if user_question:
-    # إضافة وعرض سؤال المستخدم
-    st.session_state.chat_history.append({"role": "user", "content": user_question})
+    st.session_state.chat_history.append(
+        {"role": "user", "content": user_question}
+    )
 
     with st.chat_message("user"):
         st.markdown(user_question)
-    
-    # الحصول على الإجابة وعرضها
+
     with st.chat_message("assistant"):
-        with st.spinner('جاري البحث...'):
-            ai_answer = get_ai_response(user_question)
-            st.markdown(ai_answer)
-    
-    # إضافة الإجابة للسجل
-    st.session_state.chat_history.append({"role": "assistant", "content": ai_answer})
-    
-    # تحديث الصفحة
+        with st.spinner("جاري البحث..."):
+            answer = get_ai_response(user_question)
+            st.markdown(answer)
+
+    st.session_state.chat_history.append(
+        {"role": "assistant", "content": answer}
+    )
+
     st.rerun()
