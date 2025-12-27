@@ -150,14 +150,8 @@ I'll add a comprehensive survey section in both English and Arabic to help gathe
    - Billing and invoicing | الفواتير والفواتير
    - Other (please specify) | أخرى (يرجى التحديد)
 
-#### Pricing & Willingness to Pay | التسعير والاستعداد للدفع
-5. What is your budget for legal tech tools annually? | ما هي ميزانيتك السنوية لأدوات التقنية القانونية؟
-   - Under $500 | أقل من 500 دولار
-   - $500 - $1,000 | 1000 - 500 دولار
-   - $1,000 - $5,000 | 5000 - 1000 دولار
-   - Over $5,000 | أكثر من 5000 دولار
 
-6. Would you prefer a subscription or one-time payment model? | هل تفضل نموذج الاشتراك أم الدفع لمرة واحدة؟
+5. Would you prefer a subscription or one-time payment model? | هل تفضل نموذج الاشتراك أم الدفع لمرة واحدة؟
    - Monthly subscription | اشتراك شهري
    - Annual subscription | اشتراك سنوي
    - One-time payment | دفع لمرة واحدة
