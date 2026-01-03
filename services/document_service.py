@@ -1,32 +1,39 @@
-import tempfile
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import os
 
 
-def build_vectorstore_from_uploaded_pdf(
-    uploaded_file,
-    *,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-):
-    if uploaded_file is None:
+def get_pdf_text(pdf_docs):
+    text = ""
+    for pdf in pdf_docs:
+        try:
+            pdf_reader = PdfReader(pdf)
+            for page in pdf_reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text
+        except Exception as e:
+            print(f"Error reading PDF {pdf.name}: {e}")
+    return text
+
+
+def get_text_chunks(text):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000, chunk_overlap=200, length_function=len
+    )
+    chunks = text_splitter.split_text(text)
+    return chunks
+
+
+def get_vectorstore(text_chunks):
+    if not text_chunks:
         return None
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        tmp_path = tmp_file.name
-
-    loader = PyPDFLoader(tmp_path)
-    pages = loader.load()
-
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
-    chunks = text_splitter.split_documents(pages)
-
-    embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
-    return FAISS.from_documents(chunks, embeddings)
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    return vectorstore

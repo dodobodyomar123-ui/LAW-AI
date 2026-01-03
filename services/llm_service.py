@@ -3,11 +3,11 @@ import streamlit as st
 import google.generativeai as genai
 
 
-def get_ai_response(user_question: str, *, vectorstore=None, model_name: str = "gemini-2.5-flash") -> str:
+def get_ai_response(
+    user_question: str, *, vectorstore=None, model_name: str = "gemini-2.5-flash"
+) -> str:
     try:
-        api_key = (
-            os.getenv("GOOGLE_API_KEY")
-        )
+        api_key = os.getenv("GOOGLE_API_KEY")
 
         if not api_key:
             return "حدث خطأ: لم يتم العثور على GOOGLE_API_KEY في متغيرات البيئة"
